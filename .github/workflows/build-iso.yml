@@ -1,0 +1,83 @@
+name: Būvēt Seroga OS ISO
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+  # Katru svētdienu jauns ISO ar svaigākajiem atjauninājumiem un tavām lietotnēm
+  schedule:
+    - cron: "0 3 * * 0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: seroga-os-iso
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Atbrīvot vietu diskā
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force
+          df -h /
+
+      - name: Lejupielādēt kodu
+        uses: actions/checkout@v4
+
+      - name: Būvēt ISO (Debian 13 konteinerā)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run --rm --privileged \
+            -e GITHUB_TOKEN \
+            -v "$PWD":/build -w /build \
+            debian:trixie bash ./build.sh
+
+      - name: Sagatavot failus augšupielādei
+        id: prep
+        run: |
+          sudo chown -R "$USER" out
+          cd out
+          ISO=$(ls *.iso)
+          echo "iso=$ISO" >> "$GITHUB_OUTPUT"
+          # GitHub Release fails var būt max 2 GB — lielāku ISO sadala daļās
+          SIZE=$(stat -c%s "$ISO")
+          if [ "$SIZE" -gt 2000000000 ]; then
+            split -b 1900M -d "$ISO" "$ISO.part"
+            echo "split=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "split=false" >> "$GITHUB_OUTPUT"
+          fi
+          ls -lh
+
+      - name: Saglabāt ISO kā artefaktu
+        uses: actions/upload-artifact@v4
+        with:
+          name: seroga-os-iso
+          path: |
+            out/*.iso
+            out/SHA256SUMS
+          retention-days: 14
+          compression-level: 0
+
+      - name: Publicēt GitHub Release (tikai v* tagiem)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Seroga OS ${{ github.ref_name }}
+          body: |
+            Seroga OS ${{ github.ref_name }} — uz Debian 13 bāzes, KDE Plasma, Windows stila darbvirsma.
+
+            **Kā ierakstīt USB:** lejupielādē ISO un ieraksti ar Rufus (Windows) vai balenaEtcher.
+            Ja ISO ir sadalīts daļās (`.part00`, `.part01`…), vispirms tās savieno:
+            - Windows: `copy /b seroga-os-*.iso.part00 + seroga-os-*.iso.part01 seroga-os.iso`
+            - Linux: `cat seroga-os-*.iso.part* > seroga-os.iso`
+          files: |
+            ${{ steps.prep.outputs.split == 'true' && 'out/*.part*' || 'out/*.iso' }}
+            out/SHA256SUMS
