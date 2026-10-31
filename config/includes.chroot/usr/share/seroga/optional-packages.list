@@ -1,0 +1,22 @@
+# Pakotnes, ko instalē, ja tās ir pieejamas (trūkstoša netraucē būvēšanai)
+unrar-free
+firmware-atheros
+firmware-amd-graphics
+firmware-intel-sound
+firmware-sof-signed
+earlyoom
+sddm-theme-breeze
+plasma-discover-backend-fwupd
+partitionmanager
+filelight
+fonts-liberation2
+libmpv2
+libgtk-3-0t64
+libsecret-1-0
+libjsoncpp26
+libayatana-appindicator3-1
+wine64
+winetricks
+python3-gbinder
+hunspell-lv
+firefox-esr-l10n-lv

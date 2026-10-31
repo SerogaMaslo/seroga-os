@@ -1,0 +1,24 @@
+#!/bin/sh
+# Seroga OS — live-build konfigurācija (Debian 13 "trixie", amd64)
+set -e
+
+lb config noauto \
+  --distribution trixie \
+  --architectures amd64 \
+  --archive-areas "main contrib non-free non-free-firmware" \
+  --mirror-bootstrap "http://deb.debian.org/debian" \
+  --mirror-binary "http://deb.debian.org/debian" \
+  --security true \
+  --updates true \
+  --firmware-chroot true \
+  --firmware-binary true \
+  --debian-installer none \
+  --binary-images iso-hybrid \
+  --bootloaders "grub-efi,syslinux" \
+  --chroot-squashfs-compression-type xz \
+  --iso-application "Seroga OS" \
+  --iso-publisher "SerogaMaslo" \
+  --iso-volume "SEROGA_OS" \
+  --image-name "seroga-os" \
+  --bootappend-live "boot=live components quiet splash locales=lv_LV.UTF-8 keyboard-layouts=lv,us timezone=Europe/Riga username=seroga user-fullname=Seroga hostname=seroga-os" \
+  "${@}"
