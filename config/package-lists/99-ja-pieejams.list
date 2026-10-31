@@ -1,0 +1,40 @@
+# Pakotnes, ko instalē tikai tad, ja tās ir pieejamas.
+# Trūkstoša pakotne šeit būvēšanu NEAPTUR — der nedrošiem nosaukumiem.
+
+# Android lietotnes
+waydroid
+
+# Instalētāja iestatījumi — "a | b" nozīmē: instalē pirmo, kas pieejams
+calamares-settings-kubuntu | calamares-settings-ubuntu-common
+
+# Darbvirsma
+plasma-systemmonitor
+kde-spectacle
+kwalletmanager
+kde-config-sddm
+sddm-theme-breeze
+partitionmanager
+filelight
+plasma-discover-backend-fwupd
+plymouth-theme-breeze
+kde-config-plymouth
+
+# Valoda
+language-pack-kde-lv
+firefox-l10n-lv
+hunspell-lv
+
+# Saderība
+wine64
+winetricks
+pipewire-alsa
+earlyoom
+unrar
+fonts-liberation
+
+# Bibliotēkas Flutter lietotnēm
+libgtk-3-0t64
+libayatana-appindicator3-1
+libsecret-1-0
+libjsoncpp26
+libmpv2

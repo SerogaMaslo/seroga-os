@@ -1,0 +1,29 @@
+# KDE Plasma 6 — Windows stila darbvirsma
+kde-plasma-desktop
+sddm
+plasma-nm
+plasma-pa
+plasma-discover
+plasma-discover-backend-flatpak
+kdeconnect
+dolphin
+konsole
+kate
+ark
+gwenview
+okular
+kcalc
+kdialog
+xdg-desktop-portal-kde
+breeze-gtk-theme
+fonts-noto-core
+fonts-noto-color-emoji
+
+# Pārlūks (no Mozilla krātuves, nevis snap) un multimediji
+firefox
+vlc
+ffmpeg
+gstreamer1.0-plugins-good
+gstreamer1.0-plugins-bad
+gstreamer1.0-plugins-ugly
+gstreamer1.0-libav

@@ -1,0 +1,10 @@
+#!/bin/bash
+# Palaiž Seroga OS instalētāju (Calamares) — darbojas tikai live režīmā no USB
+if ! grep -q 'boot=casper' /proc/cmdline; then
+  kdialog --title "Seroga OS" --msgbox "Seroga OS jau ir instalēta šajā datorā."
+  exit 0
+fi
+if command -v calamares-launch >/dev/null; then
+  exec calamares-launch
+fi
+exec sudo -E calamares

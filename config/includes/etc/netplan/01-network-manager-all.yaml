@@ -1,0 +1,4 @@
+# Seroga OS: visu tīklu pārvalda NetworkManager
+network:
+  version: 2
+  renderer: NetworkManager

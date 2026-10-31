@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Instalēt Seroga OS
+Comment=Instalēt Seroga OS uz šī datora diska
+Exec=/opt/seroga/bin/seroga-instalet
+Icon=system-software-install
+Terminal=false
+Categories=X-Seroga;System;

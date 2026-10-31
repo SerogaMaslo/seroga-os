@@ -1,0 +1,14 @@
+[Windows]
+ElectricBorderMaximize=true
+ElectricBorderTiling=true
+
+[Plugins]
+blurEnabled=true
+wobblywindowsEnabled=false
+
+[Effect-overview]
+BorderActivate=9
+
+[org.kde.kdecoration2]
+ButtonsOnLeft=
+ButtonsOnRight=IAX

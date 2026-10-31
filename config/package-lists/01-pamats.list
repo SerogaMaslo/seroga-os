@@ -1,0 +1,46 @@
+# Pamatsistēma, kodols un live palaišana
+linux-generic
+casper
+discover
+laptop-detect
+os-prober
+systemd-resolved
+sudo
+locales
+curl
+wget
+git
+jq
+unzip
+zip
+p7zip-full
+ca-certificates
+rsync
+
+# Aparatūra un tīkls
+linux-firmware
+intel-microcode
+amd64-microcode
+mesa-vulkan-drivers
+network-manager
+bluez
+pipewire
+pipewire-pulse
+wireplumber
+cups
+fwupd
+
+# Ielāde (instalētai sistēmai, ar Secure Boot)
+grub-efi-amd64-signed
+shim-signed
+efibootmgr
+
+# Ātrdarbība — zram atmiņas saspiešana kā Android, enerģijas profili
+zram-tools
+power-profiles-daemon
+
+# Sistēmas atjaunošana — kā Windows "System Restore"
+timeshift
+
+# Instalētājs
+calamares
