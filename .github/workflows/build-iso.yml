@@ -68,6 +68,7 @@ jobs:
           retention-days: 14
           compression-level: 0
 
+        continue-on-error: true
       - name: Publicēt GitHub Release
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
