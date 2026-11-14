@@ -31,6 +31,17 @@ jobs:
       - name: Lejupielādēt kodu
         uses: actions/checkout@v4
 
+      - name: Izveidot lietotņu paku Release (ja vēl nav)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view lietotnes-linux >/dev/null 2>&1; then
+            gh release create lietotnes-linux --prerelease --latest=false \
+              --title "Seroga lietotnes (Linux)" \
+              --notes "Šeit glabājas tavas Seroga_Linux pakas, ko ISO būvēšana iebūvē Seroga OS. ✏️ Edit → ievelc Seroga_Linux_1_Sistemas_riki.zip … Seroga_Linux_9_Auto.zip → Update release → Actions → Run workflow. Nosaukumam jābūt Seroga_Linux_<nr>_<Kategorija>.zip — kategorija kļūst par Start izvēlnes sadaļu."
+          fi
+          gh release view lietotnes-linux --json assets -q '.assets[].name' || true
+
       - name: Būvēt ISO (Ubuntu 26.04 konteinerā)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
