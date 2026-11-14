@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Seroga Centrs
-Comment=Android lietotnes, Windows programmas, spēles un Seroga lietotnes
-Exec=/opt/seroga/bin/seroga-centrs
-Icon=/usr/share/seroga/seroga-start.svg
-Terminal=false
-Categories=X-Seroga;Settings;System;

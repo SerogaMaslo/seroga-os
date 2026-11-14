@@ -1,0 +1,359 @@
+#!/bin/bash
+# =====================================================================
+#  Seroga lietotņu paku iebūvētājs
+#
+#  Paņem tavus "Seroga_Linux_N_Kategorija.zip" arhīvus un iebūvē VISAS
+#  tajos esošās lietotnes Seroga OS Start izvēlnē, sadalot pa kategorijām.
+#
+#  Lietošana:
+#      seroga-iebuvet-pakas <sistēmas sakne> <deb mape> <paku mape>
+#    piem. ISO būvēšanā:  seroga-iebuvet-pakas work/includes work/debs work/pakas
+#    gatavā sistēmā:      sudo seroga-iebuvet-pakas / /tmp/debs ~/Lejupielādes/pakas
+#
+#  Arhīvā atpazīst (jebkurā dziļumā):
+#    • .deb               → instalē ar apt
+#    • .AppImage          → izpako (strādā bez FUSE)
+#    • .flatpak           → instalē pirmajā palaišanā
+#    • iekšējie .zip/.tar.gz/.tar.xz/.7z → izpako un meklē tālāk
+#    • mape ar palaižamu Linux failu (Flutter bundle, Qt, Electron, utt.)
+#    • mape ar .jar, run.sh/start.sh vai main.py (ja nav ELF faila)
+# =====================================================================
+set -u
+export LC_ALL=C.UTF-8
+shopt -s nullglob dotglob
+
+ROOT="$(realpath -m "${1:?norādi sistēmas sakni}")"
+DEBDIR="$(realpath -m "${2:?norādi deb mapi}")"
+PAKAS="$(realpath -m "${3:?norādi paku mapi}")"
+
+APPS="$ROOT/opt/seroga/apps"
+FLATDIR="$ROOT/opt/seroga/flatpak"
+DESKTOP="$ROOT/usr/share/applications"
+DIRS="$ROOT/usr/share/desktop-directories"
+MENU="$ROOT/etc/xdg/menus/applications-merged/seroga.menu"
+BIN="$ROOT/opt/seroga/bin"
+LIST="$APPS/pakas.txt"
+
+mkdir -p "$APPS" "$FLATDIR" "$DESKTOP" "$DIRS" "$BIN" "$DEBDIR" "$(dirname "$MENU")"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+total=0; nderb=0; declare -a CATS=()
+
+# ---------------------------------------------------------------------
+is_elf() { [ -f "$1" ] && cmp -s -n4 "$1" <(printf '\177ELF'); }
+is_exe_elf() { # ELF, bet ne bibliotēka
+  local b; b="$(basename "$1")"
+  [[ "$b" == *.so || "$b" == *.so.* || "$b" == *.o || "$b" == *.ko ]] && return 1
+  is_elf "$1"
+}
+slugify() {
+  echo "$1" | sed 's/[āĀ]/a/g; s/[čČ]/c/g; s/[ēĒ]/e/g; s/[ģĢ]/g/g; s/[īĪ]/i/g; s/[ķĶ]/k/g; s/[ļĻ]/l/g; s/[ņŅ]/n/g; s/[ōŌ]/o/g; s/[ŗŖ]/r/g; s/[šŠ]/s/g; s/[ūŪ]/u/g; s/[žŽ]/z/g' \
+    | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9]\+/-/g; s/^-//; s/-$//'
+}
+
+pretty_name() { # "Seroga_Faili-v1.2.0-linux-x64.tar.gz" → "Seroga Faili"
+  local n="$1"
+  n="${n%.AppImage}"; n="${n%.appimage}"; n="${n%.tar.gz}"; n="${n%.tar.xz}"
+  n="${n%.tgz}"; n="${n%.zip}"; n="${n%.7z}"; n="${n%.deb}"; n="${n%.jar}"
+  n="$(echo "$n" | sed -E 's/[_-]+/ /g; s/\b(linux|lnx|x64|x86 64|x86_64|amd64|release|bundle|portable|build|setup)\b//Ig; s/\bv?[0-9]+(\.[0-9]+)+[a-z0-9]*\b//Ig; s/ +/ /g; s/^ //; s/ $//; s/(^| )(.)/\1\u\2/g')"
+  [ -z "$n" ] && n="$1"
+  echo "$n"
+}
+
+kategorija() { # "Seroga_Linux_3_DJ.zip" → "DJ"
+  local c="$1"
+  c="${c%.zip}"; c="${c%.tar.gz}"; c="${c%.7z}"
+  c="$(echo "$c" | sed -E 's/^Seroga_Linux_[0-9]+_//I')"
+  case "$(echo "$c" | tr 'A-Z' 'a-z')" in
+    sistemas_riki)    echo "Sistēmas rīki" ;;
+    internets)        echo "Internets" ;;
+    dj)               echo "DJ" ;;
+    audio)            echo "Audio" ;;
+    video_foto)       echo "Video un foto" ;;
+    izskats)          echo "Izskats" ;;
+    speles_emulatori) echo "Spēles un emulatori" ;;
+    multivide)        echo "Multivide" ;;
+    auto)             echo "Auto" ;;
+    *)                echo "${c//_/ }" ;;
+  esac
+}
+
+kat_ikona() {
+  case "$1" in
+    "Sistēmas rīki") echo "applications-system" ;;
+    "Internets") echo "applications-internet" ;;
+    "DJ"|"Audio") echo "applications-multimedia" ;;
+    "Video un foto") echo "applications-graphics" ;;
+    "Izskats") echo "preferences-desktop-theme" ;;
+    "Spēles un emulatori") echo "applications-games" ;;
+    "Multivide") echo "applications-multimedia" ;;
+    "Auto") echo "applications-engineering" ;;
+    *) echo "applications-other" ;;
+  esac
+}
+
+find_icon() { # labākā ikona lietotnes mapē
+  local d="$1" best
+  best="$(find "$d" -maxdepth 6 -type f \( -iname '*.png' -o -iname '*.svg' \) \
+          \( -iname '*icon*' -o -iname '*logo*' -o -iname 'app.*' -o -iname '.DirIcon' \) \
+          -printf '%s\t%p\n' 2>/dev/null | sort -rn | head -n1 | cut -f2-)"
+  [ -z "$best" ] && [ -f "$d/.DirIcon" ] && best="$d/.DirIcon"
+  echo "$best"
+}
+
+uniq_slug() {
+  local s="$1" i=2
+  [ -z "$s" ] && s="lietotne"
+  while [ -e "$APPS/$s" ]; do s="$1-$i"; i=$((i+1)); done
+  echo "$s"
+}
+
+write_desktop() { # slug name cat exec icon [workdir]
+  local catid="X-Seroga-$(slugify "$3")"
+  cat > "$DESKTOP/seroga-app-$1.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=$2
+Comment=$3 — Seroga lietotne
+Exec=$4
+Icon=$5
+Path=${6:-/opt/seroga/apps/$1}
+Terminal=false
+Categories=X-Seroga;$catid;
+EOF
+  ln -sf "${4%% *}" "$BIN/$1" 2>/dev/null || true
+  printf '✓ %-22s %-30s %s\n' "[$3]" "$2" "/opt/seroga/apps/$1" | tee -a "$LIST"
+  total=$((total+1))
+}
+
+# Mapes pārvietošana uz /opt/seroga/apps/<slug> un ikonas noteikšana
+place_dir() { # srcdir name cat → echo slug
+  local slug; slug="$(uniq_slug "$(slugify "$2")")"
+  mkdir -p "$APPS/$slug"
+  cp -a "$1"/. "$APPS/$slug/"
+  echo "$slug"
+}
+
+icon_for() { # slug cat
+  local ic; ic="$(find_icon "$APPS/$1")"
+  if [ -n "$ic" ]; then echo "/opt/seroga/apps/$1/${ic#"$APPS/$1/"}"; else kat_ikona "$2"; fi
+}
+
+# ---------------------------------------------------------------------
+do_appimage() { # file cat
+  local f="$1" cat="$2" name slug x
+  name="$(pretty_name "$(basename "$f")")"
+  chmod +x "$f"
+  x="$TMP/ai.$RANDOM"; mkdir -p "$x"
+  if (cd "$x" && timeout 120 "$f" --appimage-extract >/dev/null 2>&1) && [ -x "$x/squashfs-root/AppRun" ]; then
+    # Nosaukums no .desktop faila AppImage iekšā, ja tāds ir
+    local dt; dt="$(ls "$x"/squashfs-root/*.desktop 2>/dev/null | head -n1)"
+    if [ -n "$dt" ]; then
+      local n2; n2="$(grep -m1 '^Name=' "$dt" | cut -d= -f2-)"; [ -n "$n2" ] && name="$n2"
+    fi
+    slug="$(place_dir "$x/squashfs-root" "$name" "$cat")"
+    write_desktop "$slug" "$name" "$cat" "/opt/seroga/apps/$slug/AppRun" "$(icon_for "$slug" "$cat")"
+  else
+    slug="$(uniq_slug "$(slugify "$name")")"; mkdir -p "$APPS/$slug"
+    install -m755 "$f" "$APPS/$slug/$slug.AppImage"
+    write_desktop "$slug" "$name" "$cat" "env APPIMAGE_EXTRACT_AND_RUN=1 /opt/seroga/apps/$slug/$slug.AppImage" "$(kat_ikona "$cat")"
+  fi
+  rm -rf "$x"
+}
+
+extract_any() { # archive dest → 0 ja izdevās
+  case "$(echo "$1" | tr 'A-Z' 'a-z')" in
+    *.zip)                   unzip -qo "$1" -d "$2" ;;
+    *.tar.gz|*.tgz|*.tar.xz|*.tar.bz2|*.tar) tar -xf "$1" -C "$2" ;;
+    *.7z)                    7z x -y -o"$2" "$1" >/dev/null ;;
+    *) return 1 ;;
+  esac
+}
+
+# Vai šī mape pati ir lietotne? Ja jā — iebūvē un atgriež 0.
+try_app_dir() { # dir name cat
+  local d="$1" name="$2" cat="$3" exe="" f lc best=""
+  # Flutter: <app>/bundle/
+  if [ -d "$d/bundle" ]; then
+    for f in "$d/bundle"/*; do is_exe_elf "$f" && { d="$d/bundle"; break; }; done
+  fi
+  lc="$(slugify "$name")"
+  for f in "$d"/*; do
+    is_exe_elf "$f" || continue
+    # priekšroka failam, kura nosaukums līdzinās mapes nosaukumam
+    [ -z "$exe" ] && exe="$f"
+    [[ "$(slugify "$(basename "$f")")" == *"${lc##*-}"* ]] && { best="$f"; break; }
+  done
+  [ -n "$best" ] && exe="$best"
+  # bin/<exe> struktūra (Qt/CMake instalācijas)
+  if [ -z "$exe" ] && [ -d "$d/bin" ] && [ ! -d "$d/bin/bin" ]; then
+    for f in "$d/bin"/*; do is_exe_elf "$f" && { exe="$f"; break; }; done
+  fi
+  if [ -n "$exe" ]; then
+    local rel="${exe#"$d/"}" slug
+    slug="$(place_dir "$d" "$name" "$cat")"
+    chmod +x "$APPS/$slug/$rel"
+    write_desktop "$slug" "$name" "$cat" "/opt/seroga/apps/$slug/$rel" "$(icon_for "$slug" "$cat")"
+    return 0
+  fi
+  return 1
+}
+
+try_script_app() { # dir name cat
+  local d="$1" name="$2" cat="$3" f
+  # Skriptu / Java / Python lietotnes (tikai ja mapē nav apakšmapju ar lietotnēm)
+  for f in "$d"/run.sh "$d"/start.sh "$d"/launch.sh "$d"/"$(basename "$d")".sh; do
+    if [ -f "$f" ]; then
+      local slug; slug="$(place_dir "$d" "$name" "$cat")"
+      chmod +x "$APPS/$slug/$(basename "$f")"
+      write_desktop "$slug" "$name" "$cat" "/opt/seroga/apps/$slug/$(basename "$f")" "$(icon_for "$slug" "$cat")"
+      return 0
+    fi
+  done
+  local jars=("$d"/*.jar)
+  if [ "${#jars[@]}" -ge 1 ]; then
+    local slug; slug="$(place_dir "$d" "$name" "$cat")"
+    write_desktop "$slug" "$name" "$cat" "java -jar /opt/seroga/apps/$slug/$(basename "${jars[0]}")" "$(icon_for "$slug" "$cat")"
+    return 0
+  fi
+  if [ -f "$d/main.py" ]; then
+    local slug; slug="$(place_dir "$d" "$name" "$cat")"
+    write_desktop "$slug" "$name" "$cat" "python3 /opt/seroga/apps/$slug/main.py" "$(icon_for "$slug" "$cat")"
+    return 0
+  fi
+  return 1
+}
+
+process_dir() { # dir cat depth
+  local d="$1" cat="$2" depth="${3:-0}" e base lc
+  [ "$depth" -gt 6 ] && return
+  for e in "$d"/*; do
+    base="$(basename "$e")"; lc="$(echo "$base" | tr 'A-Z' 'a-z')"
+    case "$base" in __MACOSX|.git|.DS_Store|Thumbs.db) continue ;; esac
+    if [ -f "$e" ]; then
+      case "$lc" in
+        *arm64*|*aarch64*|*armhf*|*.exe|*.msi|*.apk|*.dmg) continue ;;
+        *.deb)       cp "$e" "$DEBDIR/"; echo "✓ [$cat] $(pretty_name "$base") (.deb)" | tee -a "$LIST"; total=$((total+1)) ;;
+        *.appimage)  do_appimage "$e" "$cat" ;;
+        *.flatpak)   cp "$e" "$FLATDIR/"; echo "✓ [$cat] $(pretty_name "$base") (.flatpak, instalēsies pirmajā palaišanā)" | tee -a "$LIST"; total=$((total+1)) ;;
+        *.zip|*.tar.gz|*.tgz|*.tar.xz|*.tar.bz2|*.7z)
+          local x="$TMP/ar.$RANDOM"; mkdir -p "$x"
+          if extract_any "$e" "$x"; then
+            process_candidate "$x" "$(pretty_name "$base")" "$cat" "$((depth+1))"
+          else
+            echo "   ! neizdevās izpakot $base"
+          fi
+          rm -rf "$x" ;;
+        *.jar)
+          local slug; slug="$(uniq_slug "$(slugify "$(pretty_name "$base")")")"; mkdir -p "$APPS/$slug"
+          cp "$e" "$APPS/$slug/"
+          write_desktop "$slug" "$(pretty_name "$base")" "$cat" "java -jar /opt/seroga/apps/$slug/$base" "$(kat_ikona "$cat")" ;;
+      esac
+    elif [ -d "$e" ]; then
+      process_candidate "$e" "$(pretty_name "$base")" "$cat" "$((depth+1))"
+    fi
+  done
+}
+
+process_candidate() { # dir name cat depth
+  local d="$1" name="$2" cat="$3" depth="$4" only
+  # Ieejam iekšā, ja mapē ir tikai viena apakšmape
+  while :; do
+    local items=("$d"/*)
+    [ "${#items[@]}" -eq 1 ] && [ -d "${items[0]}" ] || break
+    only="$(basename "${items[0]}")"
+    case "$(echo "$only" | tr 'A-Z' 'a-z')" in
+      bin|usr|opt|lib|share|data) break ;;
+      bundle|release|linux|x64|build|app) ;;
+      *) name="$(pretty_name "$only")" ;;
+    esac
+    d="${items[0]}"
+  done
+  try_app_dir "$d" "$name" "$cat" && return
+  local before=$total
+  process_dir "$d" "$cat" "$depth"
+  if [ "$total" -eq "$before" ] && try_script_app "$d" "$name" "$cat"; then return; fi
+  if [ "$total" -eq "$before" ]; then
+    # Pēdējais mēģinājums: dziļāk paslēpts palaižams fails (piem. usr/bin/x)
+    local exe
+    exe="$(find "$d" -maxdepth 4 -type f ! -name '*.so*' ! -path '*/lib/*' ! -path '*/plugins/*' -perm -u+x 2>/dev/null | while read -r f; do is_exe_elf "$f" && { echo "$f"; break; }; done)"
+    if [ -n "$exe" ]; then
+      local rel="${exe#"$d/"}" slug
+      slug="$(place_dir "$d" "$name" "$cat")"
+      write_desktop "$slug" "$name" "$cat" "/opt/seroga/apps/$slug/$rel" "$(icon_for "$slug" "$cat")"
+    else
+      echo "   – $name: nav atrasts nekas palaižams, izlaižu"
+    fi
+  fi
+}
+
+# ---------------------------------------------------------------------
+{ echo "Seroga OS — iebūvētās lietotnes no Seroga_Linux pakām"; echo "Iebūvēts: $(date '+%Y-%m-%d %H:%M')"; echo; } > "$LIST"
+
+packs=("$PAKAS"/*.zip "$PAKAS"/*.7z "$PAKAS"/*.tar.gz)
+if [ "${#packs[@]}" -eq 0 ]; then
+  echo "Nav nevienas pakas mapē $PAKAS — izlaižu."
+  exit 0
+fi
+
+for p in "${packs[@]}"; do
+  cat="$(kategorija "$(basename "$p")")"
+  CATS+=("$cat")
+  echo
+  echo "━━ $cat  ($(basename "$p"), $(du -h "$p" | cut -f1))"
+  x="$TMP/paka"; rm -rf "$x"; mkdir -p "$x"
+  if ! extract_any "$p" "$x"; then echo "   ! neizdevās izpakot"; continue; fi
+  before=$total
+  process_dir "$x" "$cat" 0
+  # Ja paka ir viena liela mape bez apakšlietotnēm
+  [ "$total" -eq "$before" ] && process_candidate "$x" "$cat" "$cat" 0
+  echo "   → $cat: $((total-before)) lietotnes"
+  rm -rf "$x"
+done
+
+# ---------------------------------------------------------------------
+# Start izvēlne: Seroga → apakšizvēlnes pa kategorijām
+{
+  cat <<'EOF'
+<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
+ "http://www.freedesktop.org/standards/menu-spec/1.0/menu.dtd">
+<Menu>
+  <Name>Applications</Name>
+  <Menu>
+    <Name>Seroga</Name>
+    <Directory>seroga.directory</Directory>
+    <Include>
+      <And>
+        <Category>X-Seroga</Category>
+EOF
+  for c in "${CATS[@]}"; do echo "        <Not><Category>X-Seroga-$(slugify "$c")</Category></Not>"; done
+  cat <<'EOF'
+      </And>
+    </Include>
+EOF
+  for c in "${CATS[@]}"; do
+    s="$(slugify "$c")"
+    cat > "$DIRS/seroga-$s.directory" <<EOF
+[Desktop Entry]
+Type=Directory
+Name=$c
+Icon=$(kat_ikona "$c")
+EOF
+    cat <<EOF
+    <Menu>
+      <Name>Seroga $c</Name>
+      <Directory>seroga-$s.directory</Directory>
+      <Include><Category>X-Seroga-$s</Category></Include>
+    </Menu>
+EOF
+  done
+  echo "  </Menu>"
+  echo "</Menu>"
+} > "$MENU"
+
+echo
+echo "════════════════════════════════════════════"
+echo " No pakām iebūvētas lietotnes: $total"
+echo "════════════════════════════════════════════"
+exit 0

@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Seroga OS sveiciens
-Exec=/opt/seroga/bin/seroga-centrs --pirma-palaisana
-Icon=/usr/share/seroga/seroga-start.svg
-Terminal=false
-X-KDE-autostart-after=panel
-NoDisplay=true

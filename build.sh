@@ -60,7 +60,7 @@ apt-get update
 apt-get install -y --no-install-recommends \
   debootstrap squashfs-tools xorriso mtools dosfstools \
   grub-common grub-pc-bin grub-efi-amd64-bin \
-  curl jq unzip tar rsync ca-certificates
+  curl jq unzip tar rsync ca-certificates p7zip-full xz-utils diffutils
 
 # Parakstītie Secure Boot ielādētāji — tikai izvelk failus, neinstalē
 rm -rf "$WORK" && mkdir -p "$WORK" "$BOOT" "$DEBS" "$OUT"
@@ -159,6 +159,30 @@ done < <(read_list config/package-lists/9*.list)
 step "6/9  Seroga lietotnes un sistēmas faili"
 rm -rf "$STAGE" && cp -a config/includes "$STAGE"
 bash "$STAGE/opt/seroga/bin/seroga-atjaunot-lietotnes" --build "$STAGE" "$DEBS"
+
+# --- Tavas Seroga_Linux pakas (Seroga_Linux_1_Sistemas_riki.zip … _9_Auto.zip) ---
+#  Avoti: 1) mape lietotnes/ repo saknē (lokālai būvēšanai)
+#         2) šī repo GitHub Release ar tagu "$PAKU_TAGS"
+PAKAS="$WORK/pakas"; mkdir -p "$PAKAS"
+cp lietotnes/*.zip lietotnes/*.7z "$PAKAS"/ 2>/dev/null || true
+REPO="${GITHUB_REPOSITORY:-SerogaMaslo/seroga-os}"
+AUTH=(); [ -n "${GITHUB_TOKEN:-}" ] && AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
+if rel="$(curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/releases/tags/$PAKU_TAGS")"; then
+  while IFS=$'\t' read -r aid aname; do
+    [ -z "$aid" ] && continue
+    [ -f "$PAKAS/$aname" ] && continue
+    echo "Lejupielādēju paku: $aname"
+    curl -fSL --retry 3 "${AUTH[@]}" -H "Accept: application/octet-stream" \
+      -o "$PAKAS/$aname" "https://api.github.com/repos/$REPO/releases/assets/$aid" \
+      || { warn "neizdevās lejupielādēt $aname"; rm -f "$PAKAS/$aname"; }
+  done < <(jq -r '.assets[] | select(.name|test("\\.(zip|7z)$";"i")) | "\(.id)\t\(.name)"' <<<"$rel")
+else
+  warn "Release '$PAKU_TAGS' nav atrasts — pakas netiks iebūvētas"
+fi
+ls -lh "$PAKAS" || true
+bash "$STAGE/opt/seroga/bin/seroga-iebuvet-pakas" "$STAGE" "$DEBS" "$PAKAS"
+rm -rf "$PAKAS"
 
 if compgen -G "$DEBS/*.deb" >/dev/null; then
   mkdir -p "$CHROOT/tmp/seroga-debs"

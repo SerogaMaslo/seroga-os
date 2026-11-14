@@ -28,15 +28,18 @@ Atveras pirmajā palaišanā un vienmēr pieejams Start izvēlnē:
 
 ## Kā iegūt ISO
 
-### 1. Izveido repozitoriju
-1. GitHub izveido jaunu repo `seroga-os`
-2. **Add file → Upload files** — ievelc mapi `config`, failus `build.sh`, `README.md`, `.gitignore`
-3. **Add file → Create new file** — nosaukums `.github/workflows/build-iso.yml`, ielīmē darbplūsmas saturu
+### 1. Ieliec savas lietotnes (vienreiz, un katru reizi, kad tās atjauno)
+1. Atver **Releases → „Seroga lietotnes (Linux)”** (tags `lietotnes-linux`) → ✏️ **Edit**
+2. Ievelc visus 9 failus no `Downloads\Seroga_Linux`:
+   `Seroga_Linux_1_Sistemas_riki.zip` … `Seroga_Linux_9_Auto.zip`
+3. **Update release** → tad **Actions → Būvēt Seroga OS ISO → Run workflow**
+
+Atjauninātu paku vienkārši aizvieto ar jaunu tāda paša nosaukuma failu (vecā jāizdzēš).
 
 ### 2. ISO uzbūvēsies pats
-- Katrs `push` uz `main` → **Actions** cilnē parādās jauns ISO (artefakts `seroga-os-iso`, glabājas 14 dienas)
+- Katrs `push` uz `main` → jauns ISO
 - Katru svētdienu automātiski jauns ISO ar svaigākajiem atjauninājumiem
-- Būvēšana ilgst ~1–2 stundas
+- Būvēšana ilgst ~1–2 stundas; ISO tiek publicēts **Releases → jaunākais**
 
 ### 3. Oficiāla versija
 Izveido tagu, piem. `v2.0` (GitHub: **Releases → Draft a new release → Choose a tag**). ISO parādās **Releases** sadaļā. Ja tas ir lielāks par 2 GB, tiek sadalīts daļās — savienošanas instrukcija ir pie release.
@@ -52,16 +55,25 @@ Live lietotājs: `seroga` (bez paroles)
 
 ## Manas lietotnes
 
-Saraksts: [`config/includes/usr/share/seroga/lietotnes.conf`](config/includes/usr/share/seroga/lietotnes.conf)
+Galvenais avots — tavas **Seroga_Linux pakas** (zip arhīvi Release `lietotnes-linux`). Būvēšanas laikā
+[`seroga-iebuvet-pakas`](config/includes/opt/seroga/bin/seroga-iebuvet-pakas) izpako katru paku un pats atrod visas lietotnes:
 
-Katra lietotne tiek paņemta no sava GitHub repo **jaunākā Release**. Atpazīst automātiski:
-1. `.deb` fails
-2. `.AppImage` fails
-3. **Flutter Linux bundle** — `.tar.gz` vai `.zip` ar `linux` nosaukumā
+| Arhīvā atrastais | Ko ar to dara |
+|---|---|
+| `.deb` | instalē ar apt |
+| `.AppImage` | izpako (strādā bez FUSE), nosaukumu un ikonu ņem no AppImage |
+| mape ar Linux programmu (Flutter `bundle/`, Qt, Electron, `bin/…`) | kopē uz `/opt/seroga/apps/<nosaukums>` |
+| iekšēji `.zip` / `.tar.gz` / `.7z` | izpako un meklē tālāk |
+| `.jar`, `run.sh`, `main.py` | palaiž ar Java / bash / Python |
+| `.flatpak` | instalējas pirmajā palaišanā (vajag internetu) |
 
-Ja lietotnei vēl nav release ar Linux failu — tā tiek izlaista, ISO būvējas tālāk.
+Start izvēlnē: **Seroga → Sistēmas rīki / Internets / DJ / Audio / Video un foto / Izskats / Spēles un emulatori / Multivide / Auto** — kategorija nāk no zip nosaukuma (`Seroga_Linux_<nr>_<Kategorija>.zip`).
+Pilns saraksts: Seroga Centrs → **Manas lietotnes**, vai `/opt/seroga/apps/pakas.txt`.
+Būvēšanas žurnālā (Actions) katra iebūvētā lietotne redzama ar ✓.
 
-> ⚠️ **Svarīgi:** sarakstā ir pieņemti repo nosaukumi (piem. `SerogaMaslo/seroga-faili`). Pārbaudi un izlabo tos atbilstoši saviem repozitorijiem.
+**Lokālai būvēšanai** ieliec zip failus mapē `lietotnes/` repo saknē (tā netiek augšupielādēta GitHub).
+
+Papildus var lietot [`lietotnes.conf`](config/includes/usr/share/seroga/lietotnes.conf) — lietotnēm, kurām ir savs GitHub Release ar Linux failu.
 
 ### Kā pievienot Linux build Flutter lietotnei
 Lietotnes repo GitHub Actions darbplūsmā pievieno:
@@ -104,7 +116,8 @@ seroga-os/
     │   └── pec/                      ← pēc pakotnēm (valoda, nosaukums, ātrdarbība)
     ├── grub/                         ← ielādes izvēlne
     └── includes/                     ← faili, kas nonāk sistēmā
-        ├── usr/share/seroga/lietotnes.conf                     ← TAVU LIETOTŅU SARAKSTS
+        ├── usr/share/seroga/lietotnes.conf                     ← papildu lietotnes no GitHub Release
+        ├── opt/seroga/bin/seroga-iebuvet-pakas                 ← iebūvē tavas Seroga_Linux pakas
         ├── usr/share/plasma/look-and-feel/org.seroga.desktop/  ← Windows 11 stila izkārtojums
         ├── usr/share/wallpapers/seroga-os.svg                  ← tapete
         └── opt/seroga/bin/                                     ← Seroga Centrs, instalētājs, atjauninātājs

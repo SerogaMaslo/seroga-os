@@ -52,11 +52,14 @@ atjaunosanas_punkts() {
 }
 
 seroga_lietotnes() {
-  if [ -f /opt/seroga/apps/saraksts.txt ]; then
-    kdialog --title "Iebūvētās Seroga lietotnes" --textbox /opt/seroga/apps/saraksts.txt 520 420
+  local t; t="$(mktemp)"
+  cat /opt/seroga/apps/pakas.txt /opt/seroga/apps/saraksts.txt 2>/dev/null > "$t"
+  if grep -q '✓' "$t"; then
+    kdialog --title "Iebūvētās Seroga lietotnes" --textbox "$t" 720 560
   else
     msg "Šajā versijā vēl nav iebūvētu Seroga lietotņu."
   fi
+  rm -f "$t"
 }
 
 # Pirmā palaišana: piedāvā visu sagatavot

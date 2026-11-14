@@ -1,0 +1,13 @@
+[Unit]
+Description=Seroga OS — instalē iebūvētās Flatpak lietotnes
+After=network-online.target
+Wants=network-online.target
+ConditionDirectoryNotEmpty=/opt/seroga/flatpak
+ConditionPathExists=!/var/lib/seroga/flatpak-pakas.done
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo; for f in /opt/seroga/flatpak/*.flatpak; do flatpak install --system -y --noninteractive "$f" || true; done; mkdir -p /var/lib/seroga; touch /var/lib/seroga/flatpak-pakas.done'
+
+[Install]
+WantedBy=multi-user.target

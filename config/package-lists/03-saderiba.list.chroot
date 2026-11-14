@@ -1,7 +1,0 @@
-# Windows programmas (Wine) un lietotņu veikals (Flatpak)
-wine
-flatpak
-
-# Android lietotnes — Waydroid (ja nav Debian krātuvē, to pievieno āķis 0200)
-lxc
-dnsmasq-base

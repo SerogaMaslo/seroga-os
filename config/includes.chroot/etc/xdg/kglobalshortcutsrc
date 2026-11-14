@@ -1,9 +1,0 @@
-[org.kde.dolphin.desktop]
-_launch=Meta+E,Meta+E,Dolphin
-
-[org.kde.spectacle.desktop]
-RectangularRegionScreenShot=Meta+Shift+S,Meta+Shift+S,Uzņemt apgabalu
-
-[kwin]
-Show Desktop=Meta+D,Meta+D,Rādīt darbvirsmu
-Overview=Meta+Tab,Meta+Tab,Pārskats
