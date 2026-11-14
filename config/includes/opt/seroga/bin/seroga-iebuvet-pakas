@@ -38,7 +38,7 @@ mkdir -p "$APPS" "$FLATDIR" "$DESKTOP" "$DIRS" "$BIN" "$DEBDIR" "$(dirname "$MEN
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-total=0; nderb=0; declare -a CATS=()
+total=0; declare -a CATS=()
 
 # ---------------------------------------------------------------------
 is_elf() { [ -f "$1" ] && cmp -s -n4 "$1" <(printf '\177ELF'); }
